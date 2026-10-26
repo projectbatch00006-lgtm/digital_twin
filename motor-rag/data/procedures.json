@@ -1,0 +1,55 @@
+[
+  {
+    "fault": "Bearing Fault",
+    "title": "Bearing Fault Inspection",
+    "procedure": [
+      "Stop the motor using the normal shutdown procedure.",
+      "Isolate the motor according to the approved electrical safety procedure.",
+      "Inspect the bearing area for abnormal noise, vibration, temperature, or visible damage.",
+      "Check lubrication condition and bearing mounting.",
+      "Record the observed condition.",
+      "Escalate to qualified maintenance personnel if bearing replacement or further mechanical work is required."
+    ],
+    "warnings": [
+      "Do not work on an energized motor.",
+      "Do not bypass protective devices.",
+      "Follow the site's approved isolation procedure."
+    ]
+  },
+  {
+    "fault": "Motor Overheating",
+    "title": "Motor Overheating Inspection",
+    "procedure": [
+      "Stop the motor using the normal shutdown procedure.",
+      "Isolate the motor according to the approved electrical safety procedure.",
+      "Check the motor temperature.",
+      "Inspect ventilation openings and cooling arrangements.",
+      "Check for excessive load or abnormal operating conditions.",
+      "Record the observations.",
+      "Escalate if the cause cannot be safely identified."
+    ],
+    "warnings": [
+      "Allow the motor to cool before physical inspection.",
+      "Do not touch hot motor surfaces without appropriate protection.",
+      "Do not restart until the cause has been evaluated."
+    ]
+  },
+  {
+    "fault": "High Vibration",
+    "title": "High Vibration Inspection",
+    "procedure": [
+      "Stop the motor using the normal shutdown procedure.",
+      "Isolate the motor according to the approved safety procedure.",
+      "Verify the vibration measurement.",
+      "Inspect for loose mounting or abnormal mechanical conditions.",
+      "Check alignment and coupling condition where applicable.",
+      "Record the measurements.",
+      "Escalate for detailed mechanical inspection when required."
+    ],
+    "warnings": [
+      "Do not inspect rotating components while the motor is running.",
+      "Follow the approved isolation procedure.",
+      "Do not operate the motor outside permitted limits."
+    ]
+  }
+]

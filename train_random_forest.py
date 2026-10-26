@@ -497,6 +497,13 @@ anomaly_model.fit(
     X_anomaly
 )
 
+# Store reference score limits so prediction.py can expose a stable,
+# user-friendly anomaly risk percentage.  Isolation Forest considers lower
+# decision scores more abnormal.
+training_anomaly_scores = anomaly_model.decision_function(X_anomaly)
+anomaly_score_low = float(pd.Series(training_anomaly_scores).quantile(0.01))
+anomaly_score_high = float(pd.Series(training_anomaly_scores).quantile(0.99))
+
 
 # Predict entire dataset
 
@@ -705,6 +712,9 @@ model_package = {
     "anomaly_recall": final_recall,
 
     "anomaly_f1": final_f1
+
+    ,"anomaly_score_low": anomaly_score_low
+    ,"anomaly_score_high": anomaly_score_high
 }
 
 

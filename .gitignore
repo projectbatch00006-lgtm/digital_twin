@@ -1,0 +1,4 @@
+__pycache__/
+*.py[cod]
+motor-rag/chroma_db/
+digital_twin/.git_nested_repo_backup/

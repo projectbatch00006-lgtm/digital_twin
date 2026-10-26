@@ -1,0 +1,5 @@
+example,voltage_v,current_a,temperature_c,vibration,expected_use
+healthy,400,15,40,1.5,normal operation
+moderate_risk,360,25,78,12,inspection example
+high_risk,470,40,105,25,high risk example
+unusual_low_voltage,220,2,110,26,anomaly example

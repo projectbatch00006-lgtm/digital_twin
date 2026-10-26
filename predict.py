@@ -1,5 +1,91 @@
 import joblib
 import pandas as pd
+import json
+import os
+from urllib.request import Request, urlopen
+from urllib.error import URLError, HTTPError
+
+
+OLLAMA_URL = "http://localhost:11434/api/chat"
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral:latest")
+
+
+def get_fault_type(parameters):
+    """Use Mistral to identify likely fault conditions from ML results."""
+    prompt = f"""
+You are an industrial motor diagnostic assistant.
+
+Analyze the motor measurements and machine-learning results below.
+Return a concise fault assessment with:
+1. likely fault type or types
+2. evidence from the supplied parameters
+3. confidence (low, medium, or high)
+
+Use only the supplied data. Treat the result as a possible fault, not a
+confirmed mechanical diagnosis. If the data is insufficient, say so.
+
+Motor data:
+{json.dumps(parameters, indent=2)}
+"""
+
+    payload = json.dumps({
+        "model": OLLAMA_MODEL,
+        "stream": False,
+        "messages": [{"role": "user", "content": prompt}]
+    }).encode("utf-8")
+
+    request = Request(
+        OLLAMA_URL,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+
+    try:
+        with urlopen(request, timeout=90) as response:
+            result = json.loads(response.read().decode("utf-8"))
+        return result.get("message", {}).get("content", "No fault type returned.")
+    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError) as error:
+        return (
+            "Ollama diagnosis unavailable. Start Ollama and confirm that "
+            f"'{OLLAMA_MODEL}' is installed and fits available memory. "
+            f"Details: {error}"
+        )
+
+
+def get_rag_instructions(fault_type):
+    """Retrieve approved procedures and ask Mistral to explain them."""
+    try:
+        import sys
+        from pathlib import Path
+
+        rag_dir = Path(__file__).resolve().parent / "motor-rag"
+        if str(rag_dir) not in sys.path:
+            sys.path.insert(0, str(rag_dir))
+
+        from rag import retrieve_procedure
+        from ollama_service import generate_instruction
+
+        results = retrieve_procedure(fault_type, top_k=3)
+        documents = results.get("documents", [[]])[0]
+        metadatas = results.get("metadatas", [[]])[0]
+        if not documents:
+            return "No approved maintenance procedure was found.", []
+
+        context_parts = []
+        sources = []
+        for index, document in enumerate(documents):
+            metadata = metadatas[index] if index < len(metadatas) else {}
+            source = metadata.get("source", "Unknown source")
+            page = metadata.get("page", -1)
+            location = f"{source}, page {page}" if page != -1 else source
+            context_parts.append(f"SOURCE: {location}\n{document}")
+            sources.append(location)
+
+        context = "\n\n".join(context_parts)
+        return generate_instruction(fault_type, context), sources
+    except Exception as error:
+        return f"RAG procedure retrieval unavailable: {error}", []
 
 
 # ============================================================
@@ -24,6 +110,11 @@ features = package["features"]
 class_names = package["class_names"]
 
 health_map = package["health_map"]
+
+# Reference limits saved during training.  Isolation Forest scores are lower
+# for more unusual observations.
+score_low = package.get("anomaly_score_low", -0.2)
+score_high = package.get("anomaly_score_high", 0.2)
 
 
 # ============================================================
@@ -120,6 +211,13 @@ health_index = health_map[
     prediction
 ]
 
+# Probability-weighted score gives a smoother result than the fixed class
+# lookup alone.  It reflects uncertainty between neighboring health classes.
+health_score = sum(
+    probabilities[i] * health_map[i]
+    for i in range(len(probabilities))
+)
+
 
 # ============================================================
 # 8. ANOMALY DETECTION
@@ -142,9 +240,38 @@ anomaly_prediction = anomaly_model.predict(
     scaled_input
 )[0]
 
+anomaly_score = float(anomaly_model.decision_function(scaled_input)[0])
+
+# Map the model score to an easy-to-read 0-100 anomaly risk.  Clamp values so
+# unusual future readings cannot produce percentages outside the range.
+anomaly_risk = 100 * (score_high - anomaly_score) / (score_high - score_low)
+anomaly_risk = max(0.0, min(100.0, anomaly_risk))
+
 is_anomaly = (
     anomaly_prediction == -1
 )
+
+all_parameters = {
+    "voltage_v": voltage,
+    "current_a": current,
+    "temperature_c": temperature,
+    "vibration": vibration,
+    "power_w": power,
+    "thermal_load": thermal_load,
+    "health_state": class_names[prediction],
+    "health_code": int(prediction),
+    "health_index": health_index,
+    "health_score": round(float(health_score), 2),
+    "classification_confidence": round(float(confidence), 4),
+    "anomaly_score": round(anomaly_score, 4),
+    "anomaly_risk": round(anomaly_risk, 2),
+    "anomaly_detected": bool(is_anomaly)
+}
+
+all_parameters["class_probabilities"] = {
+    class_names[i]: round(float(probabilities[i]), 4)
+    for i in range(len(probabilities))
+}
 # ============================================================
 # 9. DISPLAY RESULTS
 # ============================================================
@@ -217,6 +344,11 @@ print(
 )
 
 print(
+    f"Health Score : "
+    f"{health_score:.1f}%"
+)
+
+print(
     f"Confidence   : "
     f"{confidence * 100:.2f}%"
 )
@@ -256,6 +388,44 @@ else:
         "No abnormal sensor pattern detected."
     )
 
+print(f"Anomaly Score: {anomaly_score:.4f}")
+print(f"Anomaly Risk : {anomaly_risk:.1f}%")
+
+
+# ------------------------------------------------------------
+# AI FAULT TYPE
+# ------------------------------------------------------------
+
+print("\nAI Fault Assessment (Mistral)")
+print("-" * 60)
+print("The AI reports likely causes; it cannot confirm a mechanical fault.")
+fault_type = get_fault_type(all_parameters)
+print(fault_type)
+
+
+# ------------------------------------------------------------
+# RAG MAINTENANCE PROCEDURE
+# ------------------------------------------------------------
+
+print("\nApproved Maintenance Procedure (RAG)")
+print("-" * 60)
+procedure, procedure_sources = get_rag_instructions(fault_type)
+print(procedure)
+if procedure_sources:
+    print("\nProcedure sources:")
+    for source in procedure_sources:
+        print(f"- {source}")
+
+
+# ------------------------------------------------------------
+# COMPLETE PARAMETER SUMMARY
+# ------------------------------------------------------------
+
+print("\nAll Calculated Parameters")
+print("-" * 60)
+for parameter, value in all_parameters.items():
+    print(f"{parameter:30}: {value}")
+
 
 # ============================================================
 # 10. FINAL RECOMMENDATION
@@ -264,7 +434,7 @@ else:
 print("\nMotor Condition")
 print("-" * 60)
 
-if prediction == 0 and not is_anomaly:
+if health_score >= 80 and anomaly_risk < 50:
 
     print(
         "STATUS: HEALTHY"
@@ -275,7 +445,7 @@ if prediction == 0 and not is_anomaly:
     )
 
 
-elif prediction == 1:
+elif health_score >= 60 and anomaly_risk < 70:
 
     print(
         "STATUS: LOW HEALTH"
@@ -286,7 +456,7 @@ elif prediction == 1:
     )
 
 
-elif prediction == 2:
+elif health_score >= 40 and anomaly_risk < 85:
 
     print(
         "STATUS: MODERATE"
@@ -297,7 +467,7 @@ elif prediction == 2:
     )
 
 
-elif prediction == 3:
+else:
 
     print(
         "STATUS: HIGH RISK"
