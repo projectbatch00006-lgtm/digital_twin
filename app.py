@@ -68,8 +68,22 @@ def show_3d(height=620, compact=False):
         st.markdown("**Live 3D Motor View**")
     if not GLB.exists(): st.info("Export Electric_Motor.blend as digital_twin/Electric_Motor.glb to enable the viewer."); st.code(str(BLEND)); return
     encoded = base64.b64encode(GLB.read_bytes()).decode("ascii")
-    viewer_height = 300 if compact else 600
-    components.html(f'''<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script><model-viewer src="data:model/gltf-binary;base64,{encoded}" camera-controls auto-rotate ar shadow-intensity="1" style="width:100%;height:{viewer_height}px;background:#0b1220;border-radius:16px"></model-viewer>''', height=height)
+    viewer_height = 380 if compact else 700
+    components.html(f'''<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <model-viewer id="motor-viewer" src="data:model/gltf-binary;base64,{encoded}"
+      camera-controls auto-rotate ar shadow-intensity="1"
+      camera-orbit="45deg 70deg auto" camera-target="auto" field-of-view="25deg"
+      interaction-prompt="auto" style="width:100%;height:{viewer_height}px;background:#0b1220;border-radius:16px">
+    </model-viewer>
+    <script>
+      const viewer = document.getElementById('motor-viewer');
+      viewer.addEventListener('load', () => {{
+        viewer.cameraTarget = 'auto';
+        viewer.cameraOrbit = '45deg 70deg auto';
+        viewer.fieldOfView = '25deg';
+        viewer.jumpCameraToGoal();
+      }});
+    </script>''', height=height)
 
 st.markdown('<div class="hero"><h1>⚙️ MotorGuard Digital Twin</h1><p>Condition monitoring • anomaly detection • approved procedures • 3D motor review</p></div>', unsafe_allow_html=True)
 package = load_models()
@@ -84,7 +98,7 @@ with st.sidebar:
         run = st.form_submit_button("Run Diagnosis", type="primary", use_container_width=True)
     st.caption(f"AI model: {GROQ_MODEL}"); st.caption("AI output is advisory; approved procedures and qualified personnel remain authoritative.")
     st.divider()
-    show_3d(height=320, compact=True)
+    show_3d(height=400, compact=True)
 if run:
     values = {"voltage_v": voltage, "current_a": current, "temperature_c": temperature, "vibration": vibration, "power_w": voltage*current, "thermal_load": temperature*current}
     result = diagnose(values, package)
