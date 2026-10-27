@@ -14,7 +14,17 @@ from pathlib import Path
 import bpy
 
 
-ROOT = Path(__file__).resolve().parent
+# When run from Blender's Text Editor, __file__ may point inside the .blend
+# file rather than to a real .py file. Use Blender's saved file location in
+# that case so the GLB is exported beside Electric_Motor.blend.
+script_path = Path(__file__).resolve() if "__file__" in globals() else None
+if script_path and script_path.suffix.lower() == ".py":
+    ROOT = script_path.parent
+else:
+    if not bpy.data.filepath:
+        raise RuntimeError("Save the Blender file before running the export script.")
+    blend_path = Path(bpy.data.filepath)
+    ROOT = blend_path.parent
 EXPORT_PATH = ROOT / "Electric_Motor.glb"
 
 
