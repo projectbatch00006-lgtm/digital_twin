@@ -88,6 +88,20 @@ def show_3d(height=620, compact=False):
 st.markdown('<div class="hero"><h1>⚙️ MotorGuard Digital Twin</h1><p>Condition monitoring • anomaly detection • approved procedures • 3D motor review</p></div>', unsafe_allow_html=True)
 package = load_models()
 if "history" not in st.session_state: st.session_state.history = []
+if "show_3d_view" not in st.session_state: st.session_state.show_3d_view = False
+
+top_action, top_status = st.columns([1, 4])
+with top_action:
+    if st.button("🔍 View in 3D", type="primary", use_container_width=True):
+        st.session_state.show_3d_view = not st.session_state.show_3d_view
+with top_status:
+    st.caption("Open the interactive Blender motor model when you need a visual inspection.")
+
+if st.session_state.show_3d_view:
+    with st.container(border=True):
+        st.subheader("3D Motor Digital Twin")
+        show_3d()
+
 with st.sidebar:
     st.header("Sensor Input")
     with st.form("sensor_form"):
@@ -97,8 +111,6 @@ with st.sidebar:
         vibration = st.number_input("Vibration", 0.0, 100.0, 1.5)
         run = st.form_submit_button("Run Diagnosis", type="primary", use_container_width=True)
     st.caption(f"AI model: {GROQ_MODEL}"); st.caption("AI output is advisory; approved procedures and qualified personnel remain authoritative.")
-    st.divider()
-    show_3d(height=400, compact=True)
 if run:
     values = {"voltage_v": voltage, "current_a": current, "temperature_c": temperature, "vibration": vibration, "power_w": voltage*current, "thermal_load": temperature*current}
     result = diagnose(values, package)
@@ -115,7 +127,7 @@ else:
         st.success(f"{label}: {action}")
     else:
         st.warning(f"{label}: {action}")
-    overview, charts, procedures, twin, history = st.tabs(["Overview", "Parameters & Charts", "Approved Procedure", "3D Digital Twin", "History"])
+    overview, charts, procedures, history = st.tabs(["Overview", "Parameters & Charts", "Approved Procedure", "History"])
     with overview:
         c1,c2,c3,c4 = st.columns(4); c1.metric("Health Score",f"{result['health_score']:.1f}%"); c2.metric("Health State",result["health_state"]); c3.metric("Anomaly Risk",f"{result['anomaly_risk']:.1f}%"); c4.metric("Confidence",f"{result['classification_confidence']*100:.1f}%")
         st.subheader("Likely Fault Assessment"); st.write(st.session_state.fault); st.caption("Likely condition only; confirmation requires qualified inspection.")
@@ -134,5 +146,4 @@ else:
                 st.write(f"• {source}")
         report = json.dumps({"diagnosis":result,"fault":st.session_state.fault,"procedure":st.session_state.procedure,"sources":st.session_state.sources}, indent=2)
         st.download_button("Download diagnosis report", report, "motor_diagnosis.json", "application/json")
-    with twin: show_3d()
     with history: st.subheader("Recent diagnoses"); st.dataframe(pd.DataFrame(st.session_state.history), use_container_width=True)
