@@ -81,7 +81,7 @@ def show_3d(height=620, compact=False):
     components.html(f'''<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     <model-viewer id="motor-viewer" src="data:model/gltf-binary;base64,{encoded}"
       camera-controls auto-rotate ar shadow-intensity="1"
-      camera-orbit="45deg 70deg auto" camera-target="auto" field-of-view="25deg"
+      camera-orbit="45deg 70deg auto" camera-target="auto" field-of-view="15deg"
       interaction-prompt="auto" style="width:100%;height:{viewer_height}px;background:#0b1220;border-radius:16px">
     </model-viewer>
     <script>
@@ -89,7 +89,11 @@ def show_3d(height=620, compact=False):
       viewer.addEventListener('load', () => {{
         viewer.cameraTarget = 'auto';
         viewer.cameraOrbit = '45deg 70deg auto';
-        viewer.fieldOfView = '25deg';
+        viewer.fieldOfView = '15deg';
+        // Tighten the automatic radius so the motor fills the viewer.
+        const orbit = viewer.getCameraOrbit();
+        orbit.radius *= 0.45;
+        viewer.cameraOrbit = `${{orbit.theta}}rad ${{orbit.phi}}rad ${{orbit.radius}}m`;
         viewer.jumpCameraToGoal();
       }});
     </script>''', height=height)
