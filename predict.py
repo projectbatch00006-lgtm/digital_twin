@@ -1,17 +1,11 @@
 import joblib
 import pandas as pd
 import json
-import os
-from urllib.request import Request, urlopen
-from urllib.error import URLError, HTTPError
-
-
-OLLAMA_URL = "http://localhost:11434/api/chat"
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral:latest")
+from ai_service import GROQ_MODEL, generate_ai_response
 
 
 def get_fault_type(parameters):
-    """Use Mistral to identify likely fault conditions from ML results."""
+    """Use Groq to identify likely fault conditions from ML results."""
     prompt = f"""
 You are an industrial motor diagnostic assistant.
 
@@ -28,33 +22,14 @@ Motor data:
 {json.dumps(parameters, indent=2)}
 """
 
-    payload = json.dumps({
-        "model": OLLAMA_MODEL,
-        "stream": False,
-        "messages": [{"role": "user", "content": prompt}]
-    }).encode("utf-8")
-
-    request = Request(
-        OLLAMA_URL,
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST"
-    )
-
     try:
-        with urlopen(request, timeout=90) as response:
-            result = json.loads(response.read().decode("utf-8"))
-        return result.get("message", {}).get("content", "No fault type returned.")
-    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError) as error:
-        return (
-            "Ollama diagnosis unavailable. Start Ollama and confirm that "
-            f"'{OLLAMA_MODEL}' is installed and fits available memory. "
-            f"Details: {error}"
-        )
+        return generate_ai_response(prompt)
+    except Exception as error:
+        return f"Groq diagnosis unavailable: {error}"
 
 
 def get_rag_instructions(fault_type):
-    """Retrieve approved procedures and ask Mistral to explain them."""
+    """Retrieve approved procedures and ask Groq to explain them."""
     try:
         import sys
         from pathlib import Path
@@ -64,7 +39,7 @@ def get_rag_instructions(fault_type):
             sys.path.insert(0, str(rag_dir))
 
         from rag import retrieve_procedure
-        from ollama_service import generate_instruction
+        from groq_service import generate_instruction
 
         results = retrieve_procedure(fault_type, top_k=3)
         documents = results.get("documents", [[]])[0]
@@ -396,7 +371,7 @@ print(f"Anomaly Risk : {anomaly_risk:.1f}%")
 # AI FAULT TYPE
 # ------------------------------------------------------------
 
-print("\nAI Fault Assessment (Mistral)")
+print(f"\nAI Fault Assessment (Groq: {GROQ_MODEL})")
 print("-" * 60)
 print("The AI reports likely causes; it cannot confirm a mechanical fault.")
 fault_type = get_fault_type(all_parameters)

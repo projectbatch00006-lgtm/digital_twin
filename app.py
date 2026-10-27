@@ -2,20 +2,17 @@
 import base64, json, os, sys
 from datetime import datetime
 from pathlib import Path
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 import joblib
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
+from ai_service import GROQ_MODEL, generate_ai_response
 
 ROOT = Path(__file__).resolve().parent
 MODEL_FILE = ROOT / "industrial_motor_ai_models.joblib"
 RAG_DIR = ROOT / "motor-rag"
 BLEND = ROOT / "digital_twin" / "Electric_Motor.blend"
 GLB = ROOT / "digital_twin" / "Electric_Motor.glb"
-MODEL = os.getenv("OLLAMA_MODEL", "mistral:latest")
-URL = "http://localhost:11434/api/chat"
 
 st.set_page_config(page_title="MotorGuard Digital Twin", page_icon="⚙️", layout="wide")
 st.markdown("""<style>.block-container{max-width:1500px;padding-top:1.5rem}.hero{padding:1.4rem;border-radius:16px;background:linear-gradient(120deg,#10233e,#173b58);color:white;margin-bottom:1rem}.hero h1{margin:0}.muted{color:#94a3b8;font-size:.85rem}@media(max-width:700px){.block-container{padding:.7rem}}</style>""", unsafe_allow_html=True)
@@ -25,18 +22,16 @@ def load_models():
     return joblib.load(MODEL_FILE)
 
 def ask(prompt):
-    body = json.dumps({"model": MODEL, "stream": False, "messages": [{"role": "user", "content": prompt}]}).encode()
     try:
-        with urlopen(Request(URL, data=body, headers={"Content-Type": "application/json"}, method="POST"), timeout=120) as response:
-            return json.loads(response.read().decode()).get("message", {}).get("content", "No response returned.")
-    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as error:
-        return f"Mistral unavailable: {error}"
+        return generate_ai_response(prompt)
+    except Exception as error:
+        return f"Groq unavailable: {error}"
 
 def run_rag(fault):
     if str(RAG_DIR) not in sys.path: sys.path.insert(0, str(RAG_DIR))
     try:
         from rag import retrieve_procedure
-        from ollama_service import generate_instruction
+        from groq_service import generate_instruction
         found = retrieve_procedure(fault, top_k=3)
         docs, metas = found.get("documents", [[]])[0], found.get("metadatas", [[]])[0]
         if not docs: return "No approved maintenance procedure was found.", []
@@ -87,7 +82,7 @@ with st.sidebar:
         temperature = st.number_input("Temperature (°C)", 0.0, 250.0, 40.0)
         vibration = st.number_input("Vibration", 0.0, 100.0, 1.5)
         run = st.form_submit_button("Run Diagnosis", type="primary", use_container_width=True)
-    st.caption(f"Model: {MODEL}"); st.caption("AI output is advisory; approved procedures and qualified personnel remain authoritative.")
+    st.caption(f"AI model: {GROQ_MODEL}"); st.caption("AI output is advisory; approved procedures and qualified personnel remain authoritative.")
     st.divider()
     show_3d(height=320, compact=True)
 if run:

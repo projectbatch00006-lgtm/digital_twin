@@ -1,4 +1,4 @@
 chromadb
 sentence-transformers
 pypdf
-ollama
+groq

@@ -9,7 +9,7 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from rag import retrieve_procedure
-from ollama_service import generate_instruction
+from groq_service import generate_instruction
 
 
 def main():
@@ -42,8 +42,8 @@ def main():
     try:
         answer = generate_instruction(fault, context)
     except Exception as error:
-        print(f"Could not generate the Mistral response: {error}")
-        print("Confirm that Ollama is running and mistral:latest is installed.")
+        print(f"Could not generate the Groq response: {error}")
+        print("Confirm that GROQ_API_KEY is configured and the selected model is available.")
         return 1
 
     print("\n" + "=" * 60)
