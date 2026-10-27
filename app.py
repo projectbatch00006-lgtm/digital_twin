@@ -10,6 +10,7 @@ from ai_service import GROQ_MODEL, generate_ai_response
 
 ROOT = Path(__file__).resolve().parent
 MODEL_FILE = ROOT / "industrial_motor_ai_models.joblib"
+HISTORY_FILE = ROOT / "data" / "diagnosis_history.csv"
 RAG_DIR = ROOT / "motor-rag"
 BLEND = ROOT / "digital_twin" / "Electric_Motor.blend"
 GLB = ROOT / "digital_twin" / "Electric_Motor.glb"
@@ -20,6 +21,40 @@ st.markdown("""<style>.block-container{max-width:1500px;padding-top:1.5rem}.hero
 @st.cache_resource
 def load_models():
     return joblib.load(MODEL_FILE)
+
+
+def load_history():
+    if not HISTORY_FILE.exists():
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(HISTORY_FILE)
+    except (OSError, pd.errors.ParserError):
+        return pd.DataFrame()
+
+
+def save_diagnosis(result, fault):
+    """Append one completed diagnosis to the persistent audit history."""
+    HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    row = {
+        "timestamp": result["timestamp"],
+        "voltage_v": result["voltage_v"],
+        "current_a": result["current_a"],
+        "temperature_c": result["temperature_c"],
+        "vibration": result["vibration"],
+        "power_w": result["power_w"],
+        "thermal_load": result["thermal_load"],
+        "health_state": result["health_state"],
+        "health_score": result["health_score"],
+        "health_index": result["health_index"],
+        "classification_confidence": result["classification_confidence"],
+        "anomaly_score": result["anomaly_score"],
+        "anomaly_risk": result["anomaly_risk"],
+        "anomaly_detected": result["anomaly_detected"],
+        "fault_assessment": clean_ai_text(fault)[:1000]
+    }
+    old = load_history()
+    updated = pd.concat([old, pd.DataFrame([row])], ignore_index=True)
+    updated.to_csv(HISTORY_FILE, index=False)
 
 def ask(prompt):
     try:
@@ -100,7 +135,7 @@ def show_3d(height=620, compact=False):
 
 st.markdown('<div class="hero"><h1>⚙️ MotorGuard Digital Twin</h1><p>Condition monitoring • anomaly detection • approved procedures • 3D motor review</p></div>', unsafe_allow_html=True)
 package = load_models()
-if "history" not in st.session_state: st.session_state.history = []
+if "history" not in st.session_state: st.session_state.history = load_history()
 if "show_3d_view" not in st.session_state: st.session_state.show_3d_view = False
 
 top_action, top_status = st.columns([1, 4])
@@ -131,7 +166,8 @@ if run:
     with st.spinner("Retrieving approved maintenance procedure..."): procedure, sources = run_rag(fault)
     result["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     st.session_state.update(result=result, fault=fault, procedure=procedure, sources=sources)
-    st.session_state.history.append({"timestamp":result["timestamp"],"health":result["health_state"],"score":result["health_score"],"anomaly_risk":result["anomaly_risk"]})
+    save_diagnosis(result, fault)
+    st.session_state.history = load_history()
 if "result" not in st.session_state:
     st.info("Enter sensor readings and select Run Diagnosis.")
 else:
@@ -165,5 +201,17 @@ else:
         report = json.dumps({"diagnosis":result,"fault":st.session_state.fault,"procedure":st.session_state.procedure,"sources":st.session_state.sources}, indent=2)
         st.download_button("Download diagnosis report", report, "motor_diagnosis.json", "application/json")
     with history:
-        st.subheader("Recent diagnoses")
-        st.dataframe(pd.DataFrame(st.session_state.history), width="stretch")
+        st.subheader("Diagnosis History")
+        history_df = load_history()
+        if history_df.empty:
+            st.info("No saved diagnoses yet. Run a diagnosis to start the history.")
+        else:
+            history_df["timestamp"] = pd.to_datetime(history_df["timestamp"], errors="coerce")
+            history_df = history_df.sort_values("timestamp")
+            chart_df = history_df.set_index("timestamp")[["health_score", "anomaly_risk"]].apply(pd.to_numeric, errors="coerce")
+            st.subheader("Health and anomaly trends")
+            st.line_chart(chart_df, width="stretch")
+            st.caption("Health score is higher when the motor is healthier. Anomaly risk is higher when the sensor pattern is unusual.")
+            st.subheader("All recorded inputs and outputs")
+            st.dataframe(history_df.sort_values("timestamp", ascending=False), width="stretch")
+            st.download_button("Download complete history (CSV)", history_df.to_csv(index=False).encode("utf-8"), "motor_diagnosis_history.csv", "text/csv")
