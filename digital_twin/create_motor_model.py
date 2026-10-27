@@ -94,6 +94,26 @@ def torus(name, major_radius, minor_radius, location, mat):
     return assign(obj, mat)
 
 
+def label(text, location, mat=STEEL, size=0.14):
+    """Create a compact front-facing mesh label for the exported GLB."""
+    bpy.ops.object.text_add(
+        location=location,
+        rotation=(math.radians(90), 0, 0)
+    )
+    obj = bpy.context.object
+    obj.name = f"Label - {text}"
+    obj.data.body = text
+    obj.data.align_x = "CENTER"
+    obj.data.align_y = "CENTER"
+    obj.data.size = size
+    obj.data.extrude = 0.006
+    obj.data.bevel_depth = 0.002
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    bpy.ops.object.convert(target="MESH")
+    return assign(obj, mat)
+
+
 # Clean every previous object, including accidental floors and cameras.
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
@@ -170,6 +190,16 @@ for index, x in enumerate((-1.45, 1.45), start=1):
 # A small warning plate helps the digital twin read visually without adding a
 # large floor or background object.
 cube("Identification plate", (0.65, 0.035, 0.38), (-0.45, -1.36, 1.5), DARK_STEEL)
+
+# Discreet front-facing labels. They are converted to meshes so they survive
+# GLB export and remain visible in the browser viewer.
+label("STATOR", (-0.25, -1.05, 2.18), STEEL, 0.13)
+label("WINDINGS", (-0.25, -1.05, 1.86), STEEL, 0.11)
+label("ROTOR", (0.45, -0.62, 1.50), STEEL, 0.12)
+label("BEARING", (1.75, -0.58, 2.00), STEEL, 0.10)
+label("SHAFT", (2.75, -0.30, 1.88), STEEL, 0.10)
+label("TERMINAL BOX", (0.25, -0.58, 3.38), STEEL, 0.10)
+label("COOLING FAN", (-2.05, -0.62, 2.18), STEEL, 0.10)
 
 # Ensure every exported object is a mesh, has applied transforms, and is part
 # of one compact selection. No camera, plane, or light is exported.
