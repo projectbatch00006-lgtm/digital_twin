@@ -1,5 +1,5 @@
 """MotorGuard Streamlit dashboard."""
-import base64, json, os, sys
+import base64, html, json, os, re, sys
 from datetime import datetime
 from pathlib import Path
 import joblib
@@ -26,6 +26,15 @@ def ask(prompt):
         return generate_ai_response(prompt)
     except Exception as error:
         return f"Groq unavailable: {error}"
+
+
+def clean_ai_text(value):
+    """Remove HTML artifacts from model output before rendering it."""
+    value = html.unescape(str(value))
+    value = re.sub(r"<\s*br\s*/?\s*>", "\n", value, flags=re.IGNORECASE)
+    value = re.sub(r"<\s*/?\s*(table|tr|td|th|p|div|span)[^>]*>", "\n", value, flags=re.IGNORECASE)
+    value = re.sub(r"<[^>]+>", "", value)
+    return re.sub(r"\n{3,}", "\n\n", value).strip()
 
 def run_rag(fault):
     if str(RAG_DIR) not in sys.path: sys.path.insert(0, str(RAG_DIR))
@@ -114,7 +123,7 @@ with st.sidebar:
 if run:
     values = {"voltage_v": voltage, "current_a": current, "temperature_c": temperature, "vibration": vibration, "power_w": voltage*current, "thermal_load": temperature*current}
     result = diagnose(values, package)
-    with st.spinner("Analyzing health and anomaly..."): fault = ask("Identify likely motor fault types from these ML results. Give evidence and confidence; do not claim confirmation:\n" + json.dumps(result, indent=2))
+    with st.spinner("Analyzing health and anomaly..."): fault = clean_ai_text(ask("Identify likely motor fault types from these ML results. Give evidence and confidence; do not claim confirmation:\n" + json.dumps(result, indent=2)))
     with st.spinner("Retrieving approved maintenance procedure..."): procedure, sources = run_rag(fault)
     result["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     st.session_state.update(result=result, fault=fault, procedure=procedure, sources=sources)
@@ -130,7 +139,7 @@ else:
     overview, charts, procedures, history = st.tabs(["Overview", "Parameters & Charts", "Approved Procedure", "History"])
     with overview:
         c1,c2,c3,c4 = st.columns(4); c1.metric("Health Score",f"{result['health_score']:.1f}%"); c2.metric("Health State",result["health_state"]); c3.metric("Anomaly Risk",f"{result['anomaly_risk']:.1f}%"); c4.metric("Confidence",f"{result['classification_confidence']*100:.1f}%")
-        st.subheader("Likely Fault Assessment"); st.write(st.session_state.fault); st.caption("Likely condition only; confirmation requires qualified inspection.")
+        st.subheader("Likely Fault Assessment"); st.markdown(clean_ai_text(st.session_state.fault)); st.caption("Likely condition only; confirmation requires qualified inspection.")
         if result["anomaly_detected"]:
             st.error("Abnormal sensor pattern detected")
         else:
@@ -139,7 +148,7 @@ else:
         st.subheader("Health probabilities"); st.bar_chart(pd.DataFrame({"Probability":result["class_probabilities"]}))
         st.subheader("All calculated parameters"); st.dataframe(pd.DataFrame([{k:v for k,v in result.items() if k != "class_probabilities"}]).T.rename(columns={0:"Value"}), use_container_width=True); st.json(result["class_probabilities"])
     with procedures:
-        st.subheader("Approved Maintenance Procedure"); st.write(st.session_state.procedure)
+        st.subheader("Approved Maintenance Procedure"); st.markdown(clean_ai_text(st.session_state.procedure))
         if st.session_state.sources:
             st.subheader("Sources")
             for source in st.session_state.sources:
