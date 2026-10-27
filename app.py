@@ -101,7 +101,7 @@ if "show_3d_view" not in st.session_state: st.session_state.show_3d_view = False
 
 top_action, top_status = st.columns([1, 4])
 with top_action:
-    if st.button("🔍 View in 3D", type="primary", use_container_width=True):
+    if st.button("🔍 View in 3D", type="primary", width="stretch"):
         st.session_state.show_3d_view = not st.session_state.show_3d_view
 with top_status:
     st.caption("Open the interactive Blender motor model when you need a visual inspection.")
@@ -118,7 +118,7 @@ with st.sidebar:
         current = st.number_input("Current (A)", 0.0, 200.0, 15.0)
         temperature = st.number_input("Temperature (°C)", 0.0, 250.0, 40.0)
         vibration = st.number_input("Vibration", 0.0, 100.0, 1.5)
-        run = st.form_submit_button("Run Diagnosis", type="primary", use_container_width=True)
+        run = st.form_submit_button("Run Diagnosis", type="primary", width="stretch")
     st.caption(f"AI model: {GROQ_MODEL}"); st.caption("AI output is advisory; approved procedures and qualified personnel remain authoritative.")
 if run:
     values = {"voltage_v": voltage, "current_a": current, "temperature_c": temperature, "vibration": vibration, "power_w": voltage*current, "thermal_load": temperature*current}
@@ -146,7 +146,12 @@ else:
             st.success("No anomaly flag detected")
     with charts:
         st.subheader("Health probabilities"); st.bar_chart(pd.DataFrame({"Probability":result["class_probabilities"]}))
-        st.subheader("All calculated parameters"); st.dataframe(pd.DataFrame([{k:v for k,v in result.items() if k != "class_probabilities"}]).T.rename(columns={0:"Value"}), use_container_width=True); st.json(result["class_probabilities"])
+        st.subheader("All calculated parameters")
+        parameter_table = pd.DataFrame(
+            [{k: str(v) for k, v in result.items() if k != "class_probabilities"}]
+        ).T.rename(columns={0: "Value"})
+        st.dataframe(parameter_table, width="stretch")
+        st.json(result["class_probabilities"])
     with procedures:
         st.subheader("Approved Maintenance Procedure"); st.markdown(clean_ai_text(st.session_state.procedure))
         if st.session_state.sources:
@@ -155,4 +160,6 @@ else:
                 st.write(f"• {source}")
         report = json.dumps({"diagnosis":result,"fault":st.session_state.fault,"procedure":st.session_state.procedure,"sources":st.session_state.sources}, indent=2)
         st.download_button("Download diagnosis report", report, "motor_diagnosis.json", "application/json")
-    with history: st.subheader("Recent diagnoses"); st.dataframe(pd.DataFrame(st.session_state.history), use_container_width=True)
+    with history:
+        st.subheader("Recent diagnoses")
+        st.dataframe(pd.DataFrame(st.session_state.history), width="stretch")
