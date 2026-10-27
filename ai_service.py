@@ -5,7 +5,7 @@ import os
 from groq import Groq
 
 
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
 
 def generate_ai_response(prompt, system_prompt=None):
