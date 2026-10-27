@@ -73,11 +73,12 @@ def cylinder(name, radius, depth, location, mat, vertices=64):
     return assign(obj, mat)
 
 
-def cube(name, scale, location, mat):
+def cube(name, scale, location, mat, rotation=(0, 0, 0)):
     bpy.ops.mesh.primitive_cube_add(size=1, location=location)
     obj = bpy.context.object
     obj.name = name
     obj.dimensions = scale
+    obj.rotation_euler = rotation
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     return assign(obj, mat)
 
@@ -111,27 +112,60 @@ cylinder("Rotor core", 0.46, 2.35, (0.25, 0, 1.5), STEEL)
 for index, x in enumerate([i * 0.28 - 0.72 for i in range(6)]):
     cylinder(f"Rotor lamination {index + 1:02d}", 0.49, 0.035, (x, 0, 1.5), DARK_STEEL, 48)
 
+# Rotor cage bars and end-ring detail, giving the interior a recognizable
+# induction-motor construction instead of a plain cylinder.
+for index in range(10):
+    angle = 2 * math.pi * index / 10
+    y = 0.36 * math.cos(angle)
+    z = 1.5 + 0.36 * math.sin(angle)
+    cube(f"Rotor cage bar {index + 1:02d}", (2.15, 0.045, 0.075), (0.25, y, z), STEEL, (angle, 0, 0))
+cylinder("Rotor drive end ring", 0.48, 0.10, (1.45, 0, 1.5), STEEL, 48)
+cylinder("Rotor fan end ring", 0.48, 0.10, (-0.95, 0, 1.5), STEEL, 48)
+
+# Stator slot teeth add depth around the inner stator circumference.
+for index in range(18):
+    angle = 2 * math.pi * index / 18
+    y = 0.76 * math.cos(angle)
+    z = 1.5 + 0.76 * math.sin(angle)
+    cube(f"Stator slot tooth {index + 1:02d}", (2.45, 0.055, 0.11), (0, y, z), DARK_STEEL, (angle, 0, 0))
+
 # Cooling ribs are narrow rings around the housing.
 for index, x in enumerate([i * 0.12 - 1.44 for i in range(25)]):
     cylinder(f"Cooling rib {index + 1:02d}", 1.08, 0.045, (x, 0, 1.5), CASING, 48)
 
 cylinder("Drive end shield", 1.04, 0.28, (1.62, 0, 1.5), CASING)
 cylinder("Drive bearing", 0.42, 0.24, (1.86, 0, 1.5), STEEL)
+cylinder("Drive bearing inner race", 0.27, 0.30, (1.87, 0, 1.5), DARK_STEEL)
+cylinder("Fan bearing", 0.38, 0.20, (-1.36, 0, 1.5), STEEL)
 cylinder("Fan cowl", 1.04, 0.76, (-1.86, 0, 1.5), DARK_STEEL)
 cylinder("Fan cowl rim", 1.08, 0.12, (-2.26, 0, 1.5), DARK_STEEL)
 cylinder("Rotor shaft", 0.18, 2.4, (2.55, 0, 1.5), STEEL)
 cube("Shaft key", (0.7, 0.12, 0.12), (3.15, 0, 1.67), STEEL)
+
+# Cooling fan blades inside the rear cowl.
+for index in range(8):
+    angle = 2 * math.pi * index / 8
+    y = 0.52 * math.cos(angle)
+    z = 1.5 + 0.52 * math.sin(angle)
+    cube(f"Cooling fan blade {index + 1:02d}", (0.10, 0.62, 0.12), (-2.18, y, z), STEEL, (angle, 0, 0))
 
 # Terminal box and lid.
 cube("Terminal box", (1.25, 1.0, 0.62), (0.25, 0, 2.65), CASING)
 cube("Terminal lid", (1.32, 1.07, 0.10), (0.25, 0, 3.02), DARK_STEEL)
 for index, y in enumerate((-0.28, 0.28), start=1):
     cylinder(f"Cable gland {index}", 0.14, 0.28, (0.25, y, 2.36), DARK_STEEL, 32)
+for index, y in enumerate((-0.30, 0.0, 0.30), start=1):
+    cylinder(f"Terminal post {index}", 0.055, 0.18, (0.25, y, 2.82), STEEL, 24)
 
 # Mounting base and feet.
 cube("Mounting base", (4.45, 2.7, 0.28), (0, 0, 0.28), CASING)
 for index, x in enumerate((-1.45, 1.45), start=1):
     cube(f"Mounting foot {index}", (0.75, 2.9, 0.28), (x, 0, 0.08), CASING)
+
+# Mounting-bolt heads make the base readable in the 3D inspection view.
+for index, x in enumerate((-1.45, 1.45), start=1):
+    for y in (-1.0, 1.0):
+        cylinder(f"Mounting bolt {index}-{y}", 0.10, 0.08, (x, y, 0.28), STEEL, 24)
 
 # A small warning plate helps the digital twin read visually without adding a
 # large floor or background object.
