@@ -102,18 +102,27 @@ if "result" not in st.session_state:
     st.info("Enter sensor readings and select Run Diagnosis.")
 else:
     result = st.session_state.result; label, action = status(result)
-    st.warning(f"{label}: {action}") if label != "HEALTHY" else st.success(f"{label}: {action}")
+    if label == "HEALTHY":
+        st.success(f"{label}: {action}")
+    else:
+        st.warning(f"{label}: {action}")
     overview, charts, procedures, twin, history = st.tabs(["Overview", "Parameters & Charts", "Approved Procedure", "3D Digital Twin", "History"])
     with overview:
         c1,c2,c3,c4 = st.columns(4); c1.metric("Health Score",f"{result['health_score']:.1f}%"); c2.metric("Health State",result["health_state"]); c3.metric("Anomaly Risk",f"{result['anomaly_risk']:.1f}%"); c4.metric("Confidence",f"{result['classification_confidence']*100:.1f}%")
         st.subheader("Likely Fault Assessment"); st.write(st.session_state.fault); st.caption("Likely condition only; confirmation requires qualified inspection.")
-        st.error("Abnormal sensor pattern detected") if result["anomaly_detected"] else st.success("No anomaly flag detected")
+        if result["anomaly_detected"]:
+            st.error("Abnormal sensor pattern detected")
+        else:
+            st.success("No anomaly flag detected")
     with charts:
         st.subheader("Health probabilities"); st.bar_chart(pd.DataFrame({"Probability":result["class_probabilities"]}))
         st.subheader("All calculated parameters"); st.dataframe(pd.DataFrame([{k:v for k,v in result.items() if k != "class_probabilities"}]).T.rename(columns={0:"Value"}), use_container_width=True); st.json(result["class_probabilities"])
     with procedures:
         st.subheader("Approved Maintenance Procedure"); st.write(st.session_state.procedure)
-        if st.session_state.sources: st.subheader("Sources"); [st.write(f"• {source}") for source in st.session_state.sources]
+        if st.session_state.sources:
+            st.subheader("Sources")
+            for source in st.session_state.sources:
+                st.write(f"• {source}")
         report = json.dumps({"diagnosis":result,"fault":st.session_state.fault,"procedure":st.session_state.procedure,"sources":st.session_state.sources}, indent=2)
         st.download_button("Download diagnosis report", report, "motor_diagnosis.json", "application/json")
     with twin: show_3d()
